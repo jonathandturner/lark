@@ -8,6 +8,7 @@ pub fn build(
 ) -> std::io::Result<()> {
     match codegen_type {
         CodegenType::Rust => build_rust(target_filename, src),
+        CodegenType::C => build_c(target_filename, src),
     }
 }
 
@@ -20,14 +21,12 @@ fn create_src_file(codegen_type: CodegenType) -> tempfile::NamedTempFile {
             .rand_bytes(6)
             .create()
             .unwrap(),
-        /*
         CodegenType::C => tempfile::NamedTempFileOptions::new()
             .prefix("lark")
             .suffix(".c")
             .rand_bytes(6)
             .create()
             .unwrap(),
-        */
     };
 
     temp_file
@@ -61,4 +60,10 @@ fn build_rust(target_filename: &str, src: &String) -> std::io::Result<()> {
 
         Err(Error::new(ErrorKind::Other, combined_compile_msg))
     }
+}
+
+fn build_c(target_filename: &str, src: &String) -> std::io::Result<()> {
+    println!("{}", src);
+
+    Ok(())
 }

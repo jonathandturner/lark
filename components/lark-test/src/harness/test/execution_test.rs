@@ -7,7 +7,7 @@ impl TestContext<'_> {
     crate fn build_and_run_executable(&self) {
         let exe_path = self.executable_path();
         self.db
-            .build(exe_path.to_str().unwrap())
+            .build_via_rust(exe_path.to_str().unwrap())
             .unwrap_or_else(|Cancelled| panic!("cancelled"));
 
         let cmd = Command::new(exe_path)

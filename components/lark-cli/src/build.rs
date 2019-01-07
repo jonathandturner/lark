@@ -19,7 +19,7 @@ use std::sync::Arc;
 use std::{env, io};
 use termcolor::{ColorChoice, StandardStream, WriteColor};
 
-pub fn build(file_name: &str, output_file_name: Option<&str>) {
+pub fn build_via_rust(file_name: &str, output_file_name: Option<&str>) {
     let mut file = match File::open(file_name) {
         Ok(f) => f,
         Err(err) => {
@@ -60,26 +60,87 @@ pub fn build(file_name: &str, output_file_name: Option<&str>) {
             file_path.file_name().unwrap().to_str().unwrap().to_string()
         };
 
-        db.build(&out_file_name)
+        db.build_via_rust(&out_file_name)
             .unwrap_or_else(|Cancelled| panic!("cancelled"));
     }
 }
 
+pub fn build_via_c(file_name: &str, output_file_name: Option<&str>) {
+    let mut file = match File::open(file_name) {
+        Ok(f) => f,
+        Err(err) => {
+            eprintln!("failed to open `{}`: {}", file_name, err);
+            return;
+        }
+    };
+
+    let mut contents = String::new();
+    match file.read_to_string(&mut contents) {
+        Ok(_bytes_read) => {}
+        Err(err) => {
+            eprintln!("failed to read `{}`: {}", file_name, err);
+            return;
+        }
+    }
+
+    let mut db = LarkDatabase::default();
+
+    let file_id: FileName = file_name.into_file_name(&db);
+    db.add_file(file_id, contents);
+
+    let writer = StandardStream::stderr(ColorChoice::Auto);
+    let error_count = db
+        .display_errors(&mut writer.lock())
+        .unwrap_or_else(|Cancelled| panic!("cancelled"));
+
+    if error_count == 0 {
+        let out_file_name = if let Some(path) = output_file_name {
+            path.to_string()
+        } else {
+            let file_path = if cfg!(windows) {
+                std::path::Path::new(file_name).with_extension("exe")
+            } else {
+                std::path::Path::new(file_name).with_extension("")
+            };
+
+            file_path.file_name().unwrap().to_str().unwrap().to_string()
+        };
+
+        db.build_via_c(&out_file_name)
+            .unwrap_or_else(|Cancelled| panic!("cancelled"));
+    }
+}
 pub trait LarkDatabaseExt {
     fn display_errors(&self, out: impl WriteColor) -> Result<usize, Cancelled>;
 
-    /// Build an executable into `output_file_name`.
-    fn build(&self, output_file_name: &str) -> Result<(), Cancelled>;
+    /// Build an executable into `output_file_name` using Rust as intermediary.
+    fn build_via_rust(&self, output_file_name: &str) -> Result<(), Cancelled>;
+
+    /// Build an executable into `output_file_name` using C as intermediary.
+    fn build_via_c(&self, output_file_name: &str) -> Result<(), Cancelled>;
 }
 
 impl LarkDatabaseExt for LarkDatabase {
-    fn build(&self, output_file_name: &str) -> Result<(), Cancelled> {
+    fn build_via_rust(&self, output_file_name: &str) -> Result<(), Cancelled> {
         let source_file = lark_build::codegen(self, lark_build::CodegenType::Rust);
 
         lark_build::build(
             &output_file_name,
             &source_file.value,
             lark_build::CodegenType::Rust,
+        )
+        .unwrap();
+
+        Ok(())
+    }
+
+    fn build_via_c(&self, output_file_name: &str) -> Result<(), Cancelled> {
+        let source_file = lark_build::codegen(self, lark_build::CodegenType::C);
+
+        lark_build::build(
+            &output_file_name,
+            &source_file.value,
+            lark_build::CodegenType::C,
         )
         .unwrap();
 
