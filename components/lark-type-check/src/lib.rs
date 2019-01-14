@@ -51,8 +51,8 @@ salsa::query_group! {
             use fn base_inference::query_definition::base_type_check;
         }
 
-        /// Compute the "base type information" for a given fn body.
-        /// This is the type information excluding permissions.
+        /// Compute the "full type information" for a given fn body.
+        /// This is the type information including permissions.
         fn full_type_check(key: Entity) -> WithError<Arc<TypeCheckResults<FullInferred>>> {
             type FullTypeCheckQuery;
             use fn full_inference::query_definition::full_type_check;

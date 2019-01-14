@@ -1,4 +1,5 @@
 use crate::CodegenType;
+use time::PreciseTime;
 
 /// Build a source file using the default tools on the given platform
 pub fn build(
@@ -37,6 +38,8 @@ fn build_rust(target_filename: &str, src: &String) -> std::io::Result<()> {
     use std::io::Write;
     use std::process::Command;
 
+    let start = PreciseTime::now();
+
     let mut src_file = create_src_file(CodegenType::Rust);
     src_file.write_all(src.as_bytes()).unwrap();
     let src_file_name = src_file.path().to_string_lossy().to_string();
@@ -47,6 +50,22 @@ fn build_rust(target_filename: &str, src: &String) -> std::io::Result<()> {
         .arg(target_filename)
         .output()
         .expect("Failed to run Rust compiler");
+
+    let end = PreciseTime::now();
+    let duration = start
+        .to(end)
+        .to_std()
+        .expect("Can't convert duration to std duration");
+
+    println!(
+        "status: {} in {:.3} sec",
+        if output.status.success() {
+            "success"
+        } else {
+            "fail"
+        },
+        duration.as_secs() as f64 + duration.subsec_nanos() as f64 * 1e-9
+    );
 
     if output.status.success() {
         Ok(())
@@ -62,8 +81,82 @@ fn build_rust(target_filename: &str, src: &String) -> std::io::Result<()> {
     }
 }
 
+/// Invoke the platform specific C compiler.
+/// For Unix platforms, this is 'clang'.
+/// For Windows platforms, this is 'cl.exe' from Visual Studio.
+#[cfg(windows)]
 fn build_c(target_filename: &str, src: &String) -> std::io::Result<()> {
-    println!("{}", src);
+    use std::io::Write;
+    use std::process::Command;
 
-    Ok(())
+    let start = PreciseTime::now();
+
+    let mut src_file = create_src_file(CodegenType::C);
+    src_file.write_all(src.as_bytes()).unwrap();
+    let _ = src_file.flush();
+    let src_file_name = src_file.path().to_string_lossy().to_string();
+    let _ = src_file.persist(&src_file_name);
+
+    // TODO: Support mingw also
+    #[cfg(all(windows, target_pointer_width = "32"))]
+    let target = "x86-pc-windows-msvc";
+    #[cfg(all(windows, target_pointer_width = "64"))]
+    let target = "x86_64-pc-windows-msvc";
+
+    let tool = cc::windows_registry::find_tool(&target, "cl.exe")
+        .expect("Can't find Visual Studio C compiler tools");
+
+    let tool_env: Vec<(std::ffi::OsString, std::ffi::OsString)> =
+        tool.env().iter().map(|x| x.clone()).collect();
+
+    let output = Command::new("cl.exe")
+        .arg("/w")
+        .arg(&format!("/Fo{}.obj", target_filename))
+        .arg(&format!("/Fe{}", target_filename))
+        .arg(&src_file_name)
+        .envs(tool_env)
+        .output()
+        .expect("Failed to find C compiler. Make sure the Visual Studio C compiler (cl.exe) is installed");
+
+    let _ = std::fs::remove_file(src_file_name);
+
+    let end = PreciseTime::now();
+    let duration = start
+        .to(end)
+        .to_std()
+        .expect("Can't convert duration to std duration");
+
+    println!(
+        "status: {} in {:.3} sec",
+        if output.status.success() {
+            "success"
+        } else {
+            "fail"
+        },
+        duration.as_secs() as f64 + duration.subsec_nanos() as f64 * 1e-9
+    );
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        use std::io::{Error, ErrorKind};
+
+        let compile_stdout = String::from_utf8(output.stdout).unwrap();
+        let compile_stderr = String::from_utf8(output.stderr).unwrap();
+
+        let combined_compile_msg = compile_stdout + &compile_stderr;
+
+        Err(Error::new(ErrorKind::Other, combined_compile_msg))
+    }
 }
+
+/*
+    } else {
+        Command::new(r"clang")
+            .arg(src_file_name)
+            .arg("-o")
+            .arg(target_filename)
+            .output()
+            .expect("Failed to find C compiler. Make sure clang is in your path.")
+    };
+*/
