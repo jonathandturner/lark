@@ -6,12 +6,14 @@ use lark_error::ErrorReported;
 
 pub mod delimited;
 pub mod entity;
-pub mod field;
+pub mod expression;
 pub mod fn_body;
+pub mod fn_signature;
 pub mod guard;
 pub mod identifier;
 pub mod list;
 pub mod matched;
+pub mod member;
 pub mod sigil;
 pub mod skip_newline;
 pub mod type_reference;
