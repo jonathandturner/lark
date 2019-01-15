@@ -16,6 +16,27 @@ To accomplish this, the Lark system relies heavily on [Salsa](https://github.com
 
 Salsa is already being used in [experimental third-party Rust analysis tool](https://github.com/rust-analyzer/rust-analyzer), and with Lark we hope to further explore the capabilities that Salsa makes possible.
 
+# What does it look like?
+
+Lark is still very experimental, with many core features subject to change. That said, the current version looks like this:
+
+```rust
+struct Adder {
+    x: uint
+    y: uint
+
+    sum() -> uint {
+        self.x + self.y
+    }
+}
+
+def main() {
+    let adder = Adder(x: 4, y: 7)
+
+    debug(adder.sum())
+}
+```
+
 # Goals
 
 The current goals of Lark focus on building a new compiler on top of the Salsa incremental computation system. We’re also exploring a variety of functionality that leverages this, including IDE support, compiler, and a REPL/interpreter.
